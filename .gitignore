@@ -1,0 +1,33 @@
+# Python caches, environments, and build output
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local job data (including SQLite sidecar files)
+data/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Credentials are never part of this project
+.env
+.env.*
+*.pem
+*.key
+secrets/
+
+# Editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
