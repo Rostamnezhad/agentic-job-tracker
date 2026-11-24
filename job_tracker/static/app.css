@@ -1574,3 +1574,58 @@ dialog::backdrop {
     scroll-behavior: auto !important;
   }
 }
+.source-choices {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 20px 0;
+  padding: 16px;
+}
+#discovery-sources {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+#discovery-sources label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+#discovery-sources input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+}
+.discovery-coverage {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+  margin-bottom: 28px;
+}
+.source-report {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 0;
+  font-size: 14px;
+}
+.discovery-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 18px;
+}
+.discovery-card p,
+.discovery-card li {
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.discovery-card h3 {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+#discovery-output {
+  margin-top: 32px;
+}

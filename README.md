@@ -1,13 +1,13 @@
 # Agentic AI Job Tracker
 
-A Python job-search workspace with **private accounts, a browser dashboard,
-application history, and transparent preference checks**. Organize opportunities
-from any job board without an API key or an AI subscription.
+A Python job-search workspace with private accounts, application tracking, and
+**optional Tavily-powered discovery across ten selected sources**. Tracking works
+offline without keys. Live discovery requires your own Tavily free-plan API key.
 
-**Milestone 2: a usable web application.** The original offline CLI still works.
-The assistant currently uses deterministic rules: it extracts labelled fields
-from pasted text and compares saved details with your preferences. It does not
-yet run an LLM, autonomously search for jobs, or submit applications.
+**Milestone 3: profile → bounded search → ranked leads → review → save.** The
+workflow searches public indexed pages on demand, normalizes/deduplicates URLs,
+and explains keyword relevance. It does not log into job sites, run an LLM,
+verify every job requirement, or submit applications.
 
 ## User problem
 
@@ -32,6 +32,9 @@ person's CV, credentials, or real applications are included in the repository.
 - Review suggested fields from pasted descriptions before saving.
 - JSON import/export compatible with the original CLI; no silent overwrites.
 - Clearly marked fictional samples, plus the original offline add/list CLI.
+
+- Search ten selected job/university sources using a private search profile.
+- View source failures, explained relevance, cached results, and local usage limits.
 
 ## Quick start
 
@@ -66,9 +69,95 @@ Open **http://127.0.0.1:8000**. Create a username and a password with at least
 Use the Python executable inside `.venv` for subsequent commands, or activate
 the environment first. Stop the server with **Ctrl+C**; your data stays on disk.
 Internet access is needed to install dependencies; ordinary tracking works
-offline. No Node.js build or API keys are required.
+offline. No Node.js build is needed. Only optional live discovery requires an API key.
 
-## Example: a working-student search
+## Search setup
+
+1. Create a **free Researcher account** at [Tavily](https://app.tavily.com) and obtain
+   its API key. Keep paid plans and pay-as-you-go disabled. Never paste the key into
+   chat, a GitHub issue, source code, or a command containing the literal key.
+2. Stop your running server with Ctrl+C, then run from the project folder:
+
+   ```powershell
+   .\.venv\Scripts\python.exe -m job_tracker serve --ask-search-key
+   ```
+
+   On macOS/Linux: `.venv/bin/python -m job_tracker serve --ask-search-key`.
+   The terminal prompts privately; typing/pasting is hidden. Press Enter when done.
+   The key lasts only for this server process. Alternatively, supply the server's
+   `TAVILY_API_KEY` environment variable through your host's secret configuration.
+3. Open the app, select **Find jobs**, enter skills, interests, languages/levels,
+   town, country, job type and maximum distance in kilometres. Save the profile.
+4. Choose sources, then click **Search selected sources**. A search can take about
+   a minute. Check each source's status and each lead's unknowns. **Review and save**
+   opens an editable draft; you must verify and enter the employer before saving.
+
+The current Germany-focused source catalogue is LinkedIn, Indeed, StepStone,
+Bundesagentur für Arbeit, Arbeitnow, Jobicy, RPTU, Studierendenwerk Kaiserslautern,
+academics, and Jobmensa. These are selected sources, not a measured “top ten.”
+University coverage is currently specific to Kaiserslautern, not every university.
+
+### Free-plan controls and limits
+
+As checked on 2026-11-24, Tavily offers 1,000 free credits/month without a credit
+card. A basic search costs one credit. Ten sources use ten requests, giving
+roughly 100 full searches within that allowance if nothing else uses the key.
+See [current provider pricing](https://docs.tavily.com/documentation/api-credits).
+
+- Every request explicitly selects `basic`; automatic parameter upgrades are off.
+- No extraction, crawling, research, LLM, automatic retries, or paid fallback.
+- Hard local cap: 1,000 reserved requests per UTC calendar month across this
+  installation; 40 requests per account in a rolling 24-hour period.
+- Reservations are committed before network access, so concurrent calls cannot
+  bypass the cap. Failures still count conservatively toward the local limit.
+- Identical profiles reuse successful/partial results for 24 hours without new
+  requests. Entirely failed runs can be retried after fixing configuration.
+- Counts belong to this database, not your entire Tavily account. Other apps or
+  installations can consume credits too. Restoring an old database backup can
+  roll back local counters. The provider dashboard is authoritative for billing.
+- The app cannot inspect or change your Tavily billing plan. Remaining free on
+  Tavily is essential: a local cap cannot guarantee zero charges on a paid account.
+
+### What discovery does and does not verify
+
+The search profile is sent to Tavily along with each chosen domain. Account names,
+passwords, existing applications and private notes are not included. The key stays
+on the server and is never returned to the browser. A shared deployment uses one
+server key; all users share its local monthly budget.
+
+Discovery searches public indexed pages through Tavily; it does not directly
+scrape or sign into LinkedIn/Indeed. Coverage is incomplete and search results can
+include listing pages, closed roles, or outdated information. “No results” is not
+proof that a source has no suitable jobs. Result URLs are restricted to their
+requested source and deduplicated after removing common tracking parameters;
+different URLs for the same vacancy may remain.
+
+**Distance is currently a search-query preference, not a verified radius filter.**
+No geocoder or route service is called. A town mention does not prove the office
+location, and results outside the requested radius can appear. Required languages,
+levels and current availability also remain unverified. Keyword points rank
+mentions of skills, interests, town and job type; they are not match percentages
+or hiring probabilities. They do not understand negation or synonyms. Live use
+requires your key; automated tests use deterministic provider fixtures, not live
+Tavily results.
+
+### Updating an existing ZIP installation
+
+Stop the server, download the latest repository ZIP and extract it into a **new
+folder**. Recreate `.venv` and install `requirements.txt` there. The default web
+database lives in your home directory, outside the source folder, so existing
+accounts/jobs remain available. If you used `--web-db`, back up that file and keep
+using the same path. New discovery tables are created automatically without
+changing existing jobs. Do not overwrite or delete your database.
+
+If `py` is not on PATH but you have Anaconda, run its Python executable to create
+the virtual environment, for example:
+
+```powershell
+& "$env:USERPROFILE\anaconda3\python.exe" -m venv .venv
+```
+
+## Example: tracking a working-student application
 
 1. Open **My preferences**. Choose Working student and your working language.
    Set your skills, preferred cities, German level, work arrangement, maximum
@@ -223,6 +312,7 @@ encryption. Never publish the database or personal exports with the source.
 | `job_tracker/models.py` | Shared validated job-entry model |
 | `job_tracker/storage.py`, `cli.py` | Original CLI storage/commands and web launcher |
 | `job_tracker/workspace.py` | Accounts, sessions, web jobs, versions, history |
+| `job_tracker/discovery.py` | Tavily adapter, profiles, ranking, cache and quota reservations |
 | `job_tracker/intake.py` | Reviewed extraction and preference checks |
 | `job_tracker/web.py` | Flask API, authorization, validation, headers |
 | `job_tracker/templates/`, `static/` | Responsive board/list interface and forms |
@@ -233,7 +323,7 @@ pull request with relevant tests. Keep real applications, CVs, databases, export
 and secrets out of commits.
 
 Next milestones: an optional local-model extraction adapter with an evaluation
-dataset, user-reviewed CV matching, saved searches, and opt-in reminders. Future
+dataset, verified geographic filtering, user-reviewed CV matching, and opt-in reminders. Future
 agents should propose actions for review and keep uncertain facts explicit.
 
 Licensed under the [MIT License](LICENSE).

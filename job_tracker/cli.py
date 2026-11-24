@@ -39,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", default="127.0.0.1", help="Listen address; default is local only")
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--web-db", type=Path, help="Web database; separate from the original CLI database")
+    serve.add_argument("--ask-search-key", action="store_true", help="Prompt privately for an optional Tavily key")
     return parser
 
 
@@ -58,6 +59,9 @@ def render_table(entries: list[JobEntry]) -> str:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "serve":
+        if args.ask_search_key:
+            from getpass import getpass
+            os.environ['TAVILY_API_KEY'] = getpass('Tavily free-plan API key (hidden): ').strip()
         try:
             from waitress import serve
             from .web import create_app

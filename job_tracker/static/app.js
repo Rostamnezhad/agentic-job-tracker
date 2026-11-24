@@ -164,19 +164,18 @@ function hasPreferences() {
   );
 }
 function showPage(page) {
-  const preferences = page === "preferences";
-  $("#applications-page").hidden = preferences;
-  $("#preferences-page").hidden = !preferences;
-  $("#nav-applications").classList.toggle("active", !preferences);
-  $("#nav-preferences").classList.toggle("active", preferences);
-  for (const [selector, current] of [
-    ["#nav-applications", !preferences],
-    ["#nav-preferences", preferences],
-  ]) {
-    if (current) $(selector).setAttribute("aria-current", "page");
-    else $(selector).removeAttribute("aria-current");
+  for (const name of ["applications", "preferences", "discovery"]) {
+    const selected = page === name;
+    $("#" + name + "-page").hidden = !selected;
+    const control = $("#nav-" + name);
+    control.classList.toggle("active", selected);
+    if (selected) control.setAttribute("aria-current", "page");
+    else control.removeAttribute("aria-current");
   }
-  if (preferences) fillForm($("#preferences-form"), user.preferences || {});
+  if (page === "preferences")
+    fillForm($("#preferences-form"), user.preferences || {});
+  if (page === "discovery")
+    loadDiscovery().catch((e) => error("#discovery-error", e.message));
 }
 async function enterWorkspace() {
   $("#auth-view").hidden = true;
@@ -186,6 +185,11 @@ async function enterWorkspace() {
   $("#search-input").value = "";
   $("#status-filter").value = "";
   $("#type-filter").value = "";
+  $("#discovery-form").reset();
+  $("#discovery-sources").replaceChildren();
+  $("#discovery-config").textContent = "Loading search configuration…";
+  $("#discovery-results").replaceChildren();
+  $("#discovery-output").hidden = true;
   showPage("applications");
   await refreshJobs();
 }
@@ -714,3 +718,160 @@ $("#export-button").addEventListener("click", async () => {
     $("#loading").hidden = true;
   }
 })();
+
+let discoverySources = [];
+let discoveryBusy = false;
+async function loadDiscovery() {
+  error("#discovery-error");
+  const accountId = user?.id;
+  const state = await api("/discovery");
+  if (!user || user.id !== accountId) return;
+  discoverySources = state.sources;
+  fillForm($("#discovery-form"), state.profile || {});
+  const selected = state.profile?.sources || state.sources.map((s) => s.id);
+  const choices = $("#discovery-sources");
+  choices.replaceChildren();
+  for (const source of state.sources) {
+    const input = node("input", {
+      type: "checkbox",
+      value: source.id,
+      name: "source",
+    });
+    input.checked = selected.includes(source.id);
+    choices.append(node("label", {}, [input, source.name]));
+  }
+  $("#discovery-config").textContent = state.configured
+    ? "Tavily is configured. Keep your provider account on the free plan; this app never upgrades it."
+    : "Search needs a Tavily free-plan key. Stop the server and restart with: python -m job_tracker serve --ask-search-key";
+  $("#find-jobs").disabled = !state.configured || discoveryBusy;
+  $("#discovery-budget").textContent =
+    `${state.reserved_credits} / ${state.monthly_limit} requests reserved this UTC month across this installation. Maximum 40 per user per rolling day. One basic request per selected source; identical profiles reuse a 24-hour cache. Failed requests still count toward this conservative local limit. Usage elsewhere is not included.`;
+  $("#discovery-progress").textContent = "";
+  $("#discovery-output").hidden = !state.latest;
+  if (state.latest) renderDiscovery(state.latest);
+}
+function discoveryProfile() {
+  const data = formData($("#discovery-form"));
+  delete data.source;
+  data.radius_km = Number(data.radius_km);
+  data.sources = [
+    ...document.querySelectorAll("#discovery-sources input:checked"),
+  ].map((input) => input.value);
+  return data;
+}
+function renderDiscovery(report) {
+  $("#discovery-output").hidden = false;
+  $("#discovery-summary").textContent =
+    `${report.results.length} leads · ${report.cached ? "Cached results, no new requests" : report.reserved_credits + " requests reserved"} · Search time: ${new Date(report.created_at * 1000).toLocaleString()}. Profile: ${report.profile.interests}; ${report.profile.city}, ${report.profile.radius_km} km requested.`;
+  const coverage = $("#discovery-coverage");
+  coverage.replaceChildren();
+  for (const source of report.coverage)
+    coverage.append(
+      node(
+        "p",
+        { class: "source-report" },
+        `${source.name}: ${source.state === "failed" ? source.error : source.count + " results returned"}`,
+      ),
+    );
+  const results = $("#discovery-results");
+  results.replaceChildren();
+  if (!report.results.length)
+    results.append(
+      node(
+        "p",
+        {},
+        "No leads were returned. Check the source report, broaden your target roles, or try other sources. This does not mean no suitable jobs exist.",
+      ),
+    );
+  for (const job of report.results) {
+    const card = node("article", { class: "job-card discovery-card" });
+    card.append(node("h3", {}, externalLink(job.url, job.title)));
+    card.append(
+      node(
+        "small",
+        {},
+        job.sources.join(", ") +
+          ` · Keyword relevance: ${job.relevance} points`,
+      ),
+    );
+    card.append(
+      node(
+        "p",
+        {},
+        job.snippet.slice(0, 800) ||
+          "No description returned. Open the source for details.",
+      ),
+    );
+    if (job.matches.length)
+      card.append(
+        node(
+          "ul",
+          { class: "good" },
+          job.matches.map((t) => node("li", {}, t)),
+        ),
+      );
+    if (job.gaps.length)
+      card.append(
+        node(
+          "ul",
+          { class: "gap" },
+          job.gaps.map((t) => node("li", {}, t)),
+        ),
+      );
+    card.append(
+      node(
+        "ul",
+        { class: "muted" },
+        job.unknowns.map((t) => node("li", {}, t)),
+      ),
+    );
+    card.append(
+      button("Review and save", "button secondary", () =>
+        openJob(null, {
+          company: "",
+          role: job.title,
+          url: job.url,
+          description: job.snippet,
+          notes: `Discovered via ${job.sources.join(", ")}. Verify employer, office location, language and availability.`,
+          status: "saved",
+        }).catch((e) => notify(e.message)),
+      ),
+    );
+    results.append(card);
+  }
+}
+$("#nav-discovery").addEventListener("click", () => showPage("discovery"));
+$("#discovery-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  submit(event.currentTarget, "#discovery-error", async () => {
+    await api("/discovery/profile", "PUT", discoveryProfile());
+    $("#discovery-progress").textContent =
+      "Search profile saved. No search requests made.";
+  });
+});
+$("#find-jobs").addEventListener("click", async () => {
+  if (!$("#discovery-form").reportValidity() || discoveryBusy) return;
+  const accountId = user?.id;
+  discoveryBusy = true;
+  $("#find-jobs").disabled = true;
+  error("#discovery-error");
+  $("#discovery-progress").textContent =
+    "Searching selected sources… This can take up to a minute.";
+  try {
+    await api("/discovery/profile", "PUT", discoveryProfile());
+    const report = await api("/discovery/search", "POST");
+    if (!user || user.id !== accountId) return;
+    await loadDiscovery();
+    renderDiscovery(report);
+    $("#discovery-progress").textContent =
+      "Search complete. Review each lead before saving or applying.";
+  } catch (exception) {
+    if (user?.id === accountId) {
+      error("#discovery-error", exception.message);
+      $("#discovery-progress").textContent = "";
+    }
+  } finally {
+    discoveryBusy = false;
+    $("#find-jobs").disabled = false;
+  }
+});

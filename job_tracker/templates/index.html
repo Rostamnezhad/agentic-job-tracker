@@ -147,6 +147,9 @@
               <circle cx="15" cy="17" r="3" /></svg
             >My preferences
           </button>
+          <button type="button" id="nav-discovery" class="nav-item">
+            Find jobs
+          </button>
         </nav>
         <div class="sidebar-bottom">
           <div class="sidebar-note">
@@ -343,6 +346,114 @@
             application.
           </p>
         </section>
+
+        <section id="discovery-page" hidden>
+          <header class="page-header">
+            <div>
+              <span class="eyebrow">YOUR NEXT OPPORTUNITY</span>
+              <h1>Find jobs for you</h1>
+              <p class="muted">
+                Search public pages across ten selected job and university
+                sources.
+              </p>
+            </div>
+          </header>
+          <p id="discovery-config" class="inline-note" role="status"></p>
+          <form id="discovery-form" class="preferences-form">
+            <div class="form-grid">
+              <label
+                >Skills<input
+                  name="skills"
+                  required
+                  maxlength="400"
+                  placeholder="Python, SQL, machine learning"
+              /></label>
+              <label
+                >Interests / target roles<input
+                  name="interests"
+                  required
+                  maxlength="400"
+                  placeholder="AI, automation, Python developer"
+              /></label>
+              <label
+                >Languages and levels<input
+                  name="languages"
+                  required
+                  maxlength="200"
+                  placeholder="English C1, German A2"
+              /></label>
+              <label
+                >Job type<select
+                  name="employment_type"
+                  data-options="types"
+                  data-unknown="Any job type"
+                ></select
+              ></label>
+              <label
+                >Your town<input
+                  name="city"
+                  required
+                  maxlength="120"
+                  placeholder="Kaiserslautern"
+              /></label>
+              <label
+                >Country<input
+                  name="country"
+                  required
+                  maxlength="80"
+                  value="Germany"
+              /></label>
+              <label
+                >Maximum distance (km)<input
+                  name="radius_km"
+                  type="number"
+                  required
+                  min="1"
+                  max="1000"
+                  value="100"
+              /></label>
+            </div>
+            <p class="form-hint">
+              Distance is included in the query, not verified by a route or
+              geocoding service. Results outside your radius can appear. Review
+              office location, language levels, and availability before
+              applying.
+            </p>
+            <fieldset class="source-choices">
+              <legend>Search sources</legend>
+              <div id="discovery-sources"></div>
+            </fieldset>
+            <p class="form-hint">
+              Search sends these profile fields and selected domains to Tavily.
+              Your account name, saved jobs, and private notes are not sent.
+              These are ten selected sources, not a ranking of the biggest
+              sites. University sources currently focus on Kaiserslautern.
+            </p>
+            <p id="discovery-error" class="error" role="alert" hidden></p>
+            <div class="form-footer">
+              <button type="submit" class="button secondary">
+                Save search profile</button
+              ><button type="button" id="find-jobs" class="button primary">
+                Search selected sources
+              </button>
+            </div>
+            <p id="discovery-budget" class="form-hint"></p>
+            <p id="discovery-progress" role="status"></p>
+          </form>
+          <section id="discovery-output" hidden>
+            <h2>Search report</h2>
+            <p id="discovery-summary" class="muted"></p>
+            <div id="discovery-coverage" class="discovery-coverage"></div>
+            <h2>Ranked leads</h2>
+            <p class="form-hint">
+              Ranking uses keyword mentions, not AI hiring probabilities.
+              Results can include job-board search pages and outdated listings.
+              Open the source to verify them.
+            </p>
+            <div id="discovery-results" class="discovery-results"></div>
+          </section>
+        </section>
+
         <section id="preferences-page" hidden>
           <header class="page-header">
             <div>

@@ -13,6 +13,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from .intake import assess, extract_description, validate_job, validate_preferences
 from .workspace import Workspace, ConflictError, MissingError
+from .discovery import Discovery
 
 
 def create_app(database=None, test_config=None):
@@ -30,6 +31,8 @@ def create_app(database=None, test_config=None):
     path = database or os.getenv('JOB_TRACKER_WEB_DB') or Path.home() / '.agentic-job-tracker' / 'web.sqlite3'
     store = Workspace(path)
     app.extensions['workspace'] = store
+    discovery = Discovery(store, app.config.get('DISCOVERY_SEARCH'))
+    app.extensions['discovery'] = discovery
     dummy_hash = generate_password_hash(secrets.token_urlsafe(32))
     app.json.ensure_ascii = False
 
@@ -151,6 +154,18 @@ def create_app(database=None, test_config=None):
         for job in jobs:
             job['fit'] = assess(job, preferences)
         return jsonify(jobs=jobs)
+
+    @app.get('/api/discovery')
+    def discovery_status():
+        return jsonify(discovery.status(uid()))
+
+    @app.put('/api/discovery/profile')
+    def discovery_profile():
+        return jsonify(profile=discovery.save_profile(uid(), body()))
+
+    @app.post('/api/discovery/search')
+    def discovery_search():
+        return jsonify(discovery.run(uid()))
 
     @app.post('/api/jobs')
     def add_job():
