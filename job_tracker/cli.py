@@ -4,6 +4,7 @@ import argparse
 from dataclasses import asdict
 from datetime import date
 import json
+import os
 from pathlib import Path
 import sqlite3
 import sys
@@ -34,6 +35,10 @@ def build_parser() -> argparse.ArgumentParser:
     listing = commands.add_parser("list", help="List jobs, newest entry first")
     listing.add_argument("--status", choices=STATUSES, help="Filter by status")
     listing.add_argument("--json", action="store_true", help="Output a JSON array")
+    serve = commands.add_parser("serve", help="Open the web app (install requirements.txt first)")
+    serve.add_argument("--host", default="127.0.0.1", help="Listen address; default is local only")
+    serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--web-db", type=Path, help="Web database; separate from the original CLI database")
     return parser
 
 
@@ -52,6 +57,27 @@ def render_table(entries: list[JobEntry]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "serve":
+        try:
+            from waitress import serve
+            from .web import create_app
+        except ImportError:
+            print("Install the web dependencies: python -m pip install -r requirements.txt", file=sys.stderr)
+            return 1
+        proxy = os.getenv('JOB_TRACKER_PROXY_IP')
+        proxy_options = {}
+        if proxy:
+            proxy_options = {
+                'trusted_proxy': proxy,
+                'trusted_proxy_count': 1,
+                'trusted_proxy_headers': {'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto'},
+            }
+        if not 1 <= args.port <= 65535:
+            print('Error: port must be between 1 and 65535.', file=sys.stderr)
+            return 2
+        print(f"Starting Job Tracker at http://{args.host}:{args.port}", flush=True)
+        serve(create_app(args.web_db), host=args.host, port=args.port, **proxy_options)
+        return 0
     store = JobStore(args.db)
     try:
         if args.command == "add":

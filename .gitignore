@@ -25,6 +25,9 @@ data/
 *.pem
 *.key
 secrets/
+.web-data/
+node_modules/
+.openai/
 
 # Editor and OS files
 .idea/
